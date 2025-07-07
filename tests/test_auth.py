@@ -1,0 +1,122 @@
+import pytest
+import os
+from fastapi.testclient import TestClient
+from sqlmodel import SQLModel, Session, select
+from app.main import app
+from app.database import engine
+from app.models import User
+
+client = TestClient(app)
+
+@pytest.fixture(scope="module", autouse=True)
+def reset_database():
+    # Supprime la base de données SQLite pour recréer avec tous les champs
+    if os.path.exists("auth.db"):
+        os.remove("auth.db")
+    SQLModel.metadata.create_all(engine)
+
+def test_register_and_login():
+    email = "admin3@example.com"
+    password = "secret123"
+    role = "admin"
+
+    # Enregistrement
+    response = client.post("/register", json={
+        "email": email,
+        "password": password,
+        "role": role
+    })
+    assert response.status_code == 200
+    assert response.json()["email"] == email
+
+    # Connexion
+    response = client.post("/login", json={
+        "email": email,
+        "password": password,
+        "role": role
+    })
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    assert token
+
+    # Accès /user
+    response = client.get("/user", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["email"] == email
+
+    # Accès /me
+    response = client.get("/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["email"] == email
+
+    # Accès /roles
+    response = client.get("/roles", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert "admin" in response.json()
+
+def test_protected_without_token():
+    response = client.get("/user")
+    assert response.status_code == 401
+
+def test_register_email_duplicate():
+    response = client.post("/register", json={
+        "email": "admin3@example.com",
+        "password": "anotherpass",
+        "role": "admin"
+    })
+    assert response.status_code == 400
+    assert "déjà utilisé" in response.text.lower()
+
+def test_login_wrong_password():
+    response = client.post("/login", json={
+        "email": "admin4@example.com",
+        "password": "wrongpassword",
+        "role": "admin"
+    })
+    assert response.status_code == 401
+
+def test_roles_access_denied_for_non_admin():
+    email = "tech@example.com"
+    password = "techpass"
+
+    client.post("/register", json={
+        "email": email,
+        "password": password,
+        "role": "technicien"
+    })
+
+    response = client.post("/login", json={
+        "email": email,
+        "password": password,
+        "role": "technicien"
+    })
+    token = response.json()["access_token"]
+
+    response = client.get("/roles", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
+
+def test_login_user_inactive():
+    email = "inactive@example.com"
+    password = "test123"
+    role = "admin"
+
+    response = client.post("/register", json={
+        "email": email,
+        "password": password,
+        "role": role
+    })
+    assert response.status_code == 200
+
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.email == email)).first()
+        user.is_active = False
+        session.add(user)
+        session.commit()
+
+    response = client.post("/login", json={
+        "email": email,
+        "password": password,
+        "role": role
+    })
+    assert response.status_code == 403
+    assert "désactivé" in response.text.lower()
