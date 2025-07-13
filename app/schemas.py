@@ -7,6 +7,10 @@ class UserCreate(BaseModel):
     password: str
     role: str
 
+    model_config = {
+        "from_attributes": True
+    }
+
 class UserRead(BaseModel):
     id: int
     email: EmailStr
@@ -14,9 +18,30 @@ class UserRead(BaseModel):
     is_active: bool
     created_at: datetime
 
+    model_config = {
+        "from_attributes": True
+    }
+
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+    model_config = {
+        "from_attributes": True
+    }
+
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    model_config = {
+        "from_attributes": True
+    }

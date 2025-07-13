@@ -120,3 +120,37 @@ def test_login_user_inactive():
     })
     assert response.status_code == 403
     assert "désactivé" in response.text.lower()
+
+def test_patch_update_user():
+    # 1. Créer un utilisateur admin
+    response = client.post("/register", json={
+        "email": "admin_update@example.com",
+        "password": "test123",
+        "role": "admin"
+    })
+    assert response.status_code == 200
+    admin_data = response.json()
+    user_id = admin_data["id"]
+
+    # 2. Connexion pour obtenir le token JWT
+    login_response = client.post("/login", json={
+        "email": "admin_update@example.com",
+        "password": "test123",
+        "role": "admin"  # ✅ Ajout obligatoire
+})
+
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 3. Mise à jour partielle (modifie le rôle et is_active)
+    patch_response = client.patch(f"/users/{user_id}", json={
+        "role": "technicien",
+        "is_active": False
+    }, headers=headers)
+
+    assert patch_response.status_code == 200
+    updated_user = patch_response.json()
+    assert updated_user["role"] == "technicien"
+    assert updated_user["is_active"] == False
+    assert updated_user["email"] == "admin_update@example.com"

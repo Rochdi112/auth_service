@@ -2,22 +2,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from .models import User
-from .schemas import UserCreate, UserRead, Token
+from .schemas import UserCreate, UserRead, Token, UserUpdate
 from .auth import (
     get_password_hash,
     verify_password,
     create_access_token,
     get_current_user
 )
-from .database import get_db
 from .security import require_role
 from .logger import logger
+from typing import Annotated
+from app.database import get_db as get_session
+
+
+
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=UserRead)
-def register(user_create: UserCreate, db: Session = Depends(get_db)):
+def register(user_create: UserCreate, db: Session = Depends(get_session)):
     # Vérifier si l'email existe déjà
     existing_user = db.exec(select(User).where(User.email == user_create.email)).first()
     if existing_user:
@@ -39,7 +43,7 @@ def register(user_create: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(user_create: UserCreate, db: Session = Depends(get_db)):
+def login(user_create: UserCreate, db: Session = Depends(get_session)):
     user = db.exec(select(User).where(User.email == user_create.email)).first()
     if not user or not verify_password(user_create.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Identifiants invalides")
@@ -65,3 +69,27 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.get("/roles")
 def get_roles(current_user: User = require_role("admin")):
     return ["admin", "technicien", "client"]
+
+# PATCH - Mise à jour partielle d’un utilisateur (admin uniquement)
+@router.patch("/users/{user_id}", dependencies=[require_role("admin")])
+def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    session: Annotated[Session, Depends(get_session)]
+):
+    user = session.exec(select(User).where(User.id == user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    for key, value in user_update.model_dump(exclude_unset=True).items():
+        setattr(user, key, value)
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.get("/users", response_model=list[UserRead], dependencies=[require_role("admin")])
+def list_users(session: Annotated[Session, Depends(get_session)]):
+    return session.exec(select(User)).all()
