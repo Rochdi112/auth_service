@@ -1,8 +1,3 @@
-Voici le contenu final propre et professionnel de ton `README.md` prêt à être copié dans ton projet `auth_service/README.md` :
-
----
-
-````markdown
 # 🛡️ Auth Service — Microservice d’Authentification
 **Mini ERP — MIF Maroc**  
 **Auteur : Rochdi | Génie Informatique**  
