@@ -3,6 +3,8 @@ import os
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, select
 from app.main import app
+import python_multipart
+
 from app.database import engine
 from app.models import User
 
@@ -122,6 +124,7 @@ def test_login_user_inactive():
     assert "désactivé" in response.text.lower()
 
 def test_patch_update_user():
+
     # 1. Créer un utilisateur admin
     response = client.post("/register", json={
         "email": "admin_update@example.com",
@@ -154,3 +157,62 @@ def test_patch_update_user():
     assert updated_user["role"] == "technicien"
     assert updated_user["is_active"] == False
     assert updated_user["email"] == "admin_update@example.com"
+
+
+def test_delete_user():
+    # 1. Création d’un utilisateur admin
+    response = client.post("/register", json={
+        "email": "delete_me@example.com",
+        "password": "delete123",
+        "role": "admin"
+    })
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    # 2. Connexion admin pour obtenir le token JWT
+    login = client.post("/login", json={
+        "email": "delete_me@example.com",
+        "password": "delete123",
+        "role": "admin"  # obligatoire dans ton schéma actuel
+    })
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 3. Suppression de l’utilisateur
+    delete_response = client.delete(f"/users/{user_id}", headers=headers)
+    assert delete_response.status_code == 200
+    assert "supprimé" in delete_response.json()["detail"].lower()
+
+    # 4. Vérifie que l’utilisateur est bien inaccessible (token invalidé)
+    #    Cela provoque une erreur 401 car le user n'existe plus en base
+    get_response = client.patch(f"/users/{user_id}", json={"role": "client"}, headers=headers)
+    assert get_response.status_code == 401  # 401 Unauthorized attendu
+    # Création d’un utilisateur admin
+    response = client.post("/register", json={
+        "email": "delete_me@example.com",
+        "password": "delete123",
+        "role": "admin"
+    })
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    # Connexion admin pour obtenir le token
+    login = client.post("/login", json={
+        "email": "delete_me@example.com",
+        "password": "delete123",
+        "role": "admin"  # 🔥 obligatoire pour respecter le schéma UserCreate
+})
+
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Suppression
+    delete_response = client.delete(f"/users/{user_id}", headers=headers)
+    assert delete_response.status_code == 200
+    assert "supprimé" in delete_response.json()["detail"].lower()
+
+    # Vérifie que l’utilisateur n’existe plus
+    get_response = client.patch(f"/users/{user_id}", json={"role": "client"}, headers=headers)
+    assert get_response.status_code == 401  # Le token est refusé car l'utilisateur a été supprimé
+    

@@ -1,160 +1,95 @@
-# 🛡️ Auth Service — Microservice d’Authentification
-**Mini ERP — MIF Maroc**  
-**Auteur : Rochdi | Génie Informatique**  
-**Encadrant : Mr Lahlou**
+# 🔐 Auth Service – Mini ERP MIF Maroc
+
+Ce microservice assure l’authentification, la gestion des utilisateurs et des rôles dans le projet Mini ERP MIF Maroc. Il est conçu avec FastAPI et SQLModel, et il est sécurisé via JWT.
 
 ---
 
-## 🎯 Objectif du Microservice
+## 🚀 Fonctionnalités
 
-Le microservice `auth_service` assure les fonctionnalités critiques suivantes :
-
-- Gestion des utilisateurs (inscription, connexion)
-- Authentification par token JWT
-- Attribution et vérification des rôles (`admin`, `technicien`, `medecin`)
-- Sécurisation des routes par dépendance et autorisation
-- Rejet des utilisateurs désactivés
-
-Ce service est totalement découplé, prêt à être intégré dans une architecture microservices avec d'autres modules métiers (clients, techniciens, interventions, etc.).
-
----
-
-## ⚙️ Architecture Technique
-
-| Élément           | Technologie utilisée         |
-|-------------------|------------------------------|
-| Langage           | Python 3.11                  |
-| Framework API     | FastAPI                      |
-| ORM               | SQLModel (SQLite)            |
-| Authentification  | JWT via `python-jose`        |
-| Sécurité          | Hashage avec Passlib (`bcrypt`) |
-| Tests             | Pytest, httpx                |
-| Conteneurisation  | Docker, Docker Compose       |
+| Route                          | Méthode | Description                                          | Accès        |
+|-------------------------------|---------|------------------------------------------------------|--------------|
+| `/register`                   | POST    | Créer un utilisateur (email, mot de passe, rôle)     | Public       |
+| `/login`                      | POST    | Authentifie un utilisateur, retourne un JWT          | Public       |
+| `/user`                       | GET     | Renvoie l’utilisateur connecté                       | Authentifié  |
+| `/me`                         | GET     | Alias de `/user`, pour compatibilité                 | Authentifié  |
+| `/roles`                      | GET     | Retourne les rôles disponibles                       | Admin        |
+| `/users`                      | GET     | Liste tous les utilisateurs                          | Admin        |
+| `/users/{user_id}`            | PATCH   | Mise à jour partielle (email, rôle, statut)          | Admin        |
+| `/users/{user_id}`            | DELETE  | Supprime un utilisateur                              | Admin        |
 
 ---
 
-## 📚 Endpoints RESTful
+## 🧰 Stack technique
 
-| Méthode | Endpoint     | Rôle requis | Description                          |
-|--------:|--------------|-------------|--------------------------------------|
-| POST    | `/register`  | Public      | Crée un utilisateur                  |
-| POST    | `/login`     | Public      | Authentifie et retourne un JWT       |
-| GET     | `/user`      | JWT         | Récupère l’utilisateur connecté      |
-| GET     | `/me`        | JWT         | Alias de `/user`                     |
-| GET     | `/roles`     | `admin`     | Liste des rôles disponibles          |
-
----
-
-## 🔐 Sécurité et Bonnes Pratiques
-
-- Authentification basée sur JWT signés avec clé secrète
-- Hashage sécurisé des mots de passe (`bcrypt`)
-- Système de rôles intégré au cœur de la logique applicative
-- Sécurisation des routes critiques via :
-  ```python
-  Depends(get_current_user)
-````
-
-* Vérification explicite des droits :
-
-  ```python
-  if current_user.role != "admin":
-      raise HTTPException(status_code=403, detail="Not authorized")
-  ```
+- `FastAPI`
+- `SQLModel` + SQLite (dev) / PostgreSQL (prod)
+- `passlib[bcrypt]` – Hachage mot de passe
+- `python-jose` – JWT
+- `pytest` – Tests unitaires
+- `httpx.TestClient` – Client de test
 
 ---
 
-## 🧪 Tests Unitaires
+## 🔐 Sécurité
 
-L’ensemble des tests couvre les cas suivants :
+- Authentification via JWT
+- Vérification automatique du rôle (`admin`, `technicien`, `client`)
+- Récupération de l’utilisateur connecté via dépendance `get_current_user()`
 
-* ✅ Inscription et connexion (`test_register_and_login`)
-* 🔒 Rejet sans token (`test_protected_without_token`)
-* 📧 Email déjà enregistré (`test_register_email_duplicate`)
-* ❌ Mauvais mot de passe (`test_login_wrong_password`)
-* ⛔ Accès interdit aux rôles non-admin (`test_roles_access_denied_for_non_admin`)
-* 🚫 Rejet utilisateur inactif (`test_login_user_inactive`)
+---
 
-Commandes de test :
+## ✅ Tests unitaires
+
+Lancement des tests :
 
 ```bash
 pytest -v
 ```
 
----
-
-## 🐳 Déploiement Docker
-
-### 🛠 Build manuel
-
-```bash
-docker build -t auth_service .
-docker run -p 8000:8000 auth_service
-```
-
-### ⚙️ Via Docker Compose
-
-```yaml
-version: "3.8"
-
-services:
-  auth_service:
-    build: .
-    ports:
-      - "8000:8000"
-    restart: always
-```
+Tous les tests critiques sont couverts :
+- Enregistrement
+- Connexion (valide et erreurs)
+- Récupération des infos protégées
+- Modification d’utilisateur (`PATCH`)
+- Suppression (`DELETE`)
+- Contrôle des rôles
 
 ---
 
-## 📂 Structure du Projet
-
-AUTH_SERVICE/
-├── .pytest_cache/               # Cache des tests Pytest
-├── .venv/                       # Environnement virtuel Python (non versionné)
-│
-├── app/                         # Code principal de l'application FastAPI
-│   ├── __init__.py
-│   ├── auth.py                  # Fonctions JWT, vérification, création de tokens
-│   ├── config.py                # Configuration (JWT_SECRET, durée, algo, etc.)
-│   ├── database.py              # Connexion à la base de données (SQLModel/SQLite)
-│   ├── logger.py                # Logger configurable (optionnel, propreté logs)
-│   ├── main.py                  # Entrée FastAPI (inclut les routes et init DB)
-│   ├── models.py                # Modèle User (SQLModel) avec is_active, role, etc.
-│   ├── routes.py                # Déclaration des endpoints `/register`, `/login`, etc.
-│   ├── schemas.py               # Schémas Pydantic pour validation des requêtes
-│   └── security.py              # Hashage, vérif mot de passe (Passlib)
-│
-├── tests/                       # Tests unitaires
-│   ├── __init__.py
-│   └── test_auth.py             # Tous les tests couverts (✅ 6/6)
-│
-├── .env                         # Variables d’environnement (non versionné)
-├── .env.example                 # Exemple du fichier `.env` à copier
-├── Dockerfile                   # Image Docker du microservice
-├── docker-compose.yml           # Lancement via Docker Compose
-├── requirements.txt             # Dépendances Python
-└── README.md                    # Documentation technique (génie informatique)
-
-
-## ✅ Statut
-
-✔️ Fonctionnel
-✔️ 100% des tests unitaires passent
-⚠️ Aucune vulnérabilité connue détectée
-
----
-
-## 🔄 Prochaine Étape
-
-➡️ Intégration avec les microservices suivants :
-
-* `clients_service`
-* `techniciens_service`
-* `interventions_service`
-
----
-
-> Ce microservice est une brique essentielle de l’architecture distribuée du Mini ERP de gestion des interventions pour **MIF Maroc**.
+## 🏗️ Structure du projet
 
 ```
+auth_service/
+├── app/
+│   ├── main.py          # Création app + routes
+│   ├── models.py        # SQLModel User
+│   ├── schemas.py       # Schémas Pydantic v2
+│   ├── routes.py        # Routes protégées
+│   ├── auth.py          # JWT, sécurité
+│   ├── security.py      # Rôles requis
+│   ├── database.py      # Connexion DB
+│   ├── logger.py        # Logging
+│   └── tests/
+│       └── test_auth.py # Tests unitaires
+```
+
+---
+
+## 🐳 Dockerisation (exemple)
+
+```Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY . .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
+## 📬 Contact
+
+Projet développé pour MIF Maroc – Service Informatique – 2025
